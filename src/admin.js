@@ -49,6 +49,15 @@ export function setupModals() {
       document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((m) => closeModal(m.id));
     }
   });
+
+  // Auto-scroll input into center view on focus (prevents mobile keyboard from covering field)
+  document.querySelectorAll(".form-input, select, textarea").forEach((field) => {
+    field.addEventListener("focus", () => {
+      setTimeout(() => {
+        field.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 320);
+    });
+  });
 }
 
 export function updateAdminUI() {

@@ -561,62 +561,70 @@ form {
 
 .form-input {
   width: 100%;
-  padding: 9px 12px;
+  padding: 10px 14px;
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text-primary);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   outline: none;
+  scroll-margin-top: 40px;
+  scroll-margin-bottom: 140px;
 }
 
 .form-input:focus {
   border-color: var(--color-primary);
 }
 
+.form-group {
+  margin-bottom: 16px;
+  scroll-margin-top: 40px;
+  scroll-margin-bottom: 140px;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 14px;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
-  padding-top: 10px;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 12px;
   flex-shrink: 0;
 }
 
 .modal-footer-pad {
-  padding: 0 20px 20px;
+  padding: 0 24px 24px;
   margin-top: 10px;
 }
 
 .modal-body-simple {
-  padding: 20px;
+  padding: 24px;
   text-align: center;
 }
 
 /* Toast */
 .toast-container {
   position: fixed;
-  bottom: 20px;
+  bottom: 24px;
   right: 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 200;
+  z-index: 2000;
 }
 
 .toast {
   background: #1c2128;
   border: 1px solid var(--border);
-  padding: 10px 16px;
+  padding: 12px 18px;
   border-radius: 8px;
-  font-size: 0.85rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  font-size: 0.88rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
 .hidden {
@@ -633,74 +641,149 @@ form {
   .mobile-sticky-bar { display: flex; }
 
   .container {
-    padding: 16px 14px 40px;
+    padding: 24px 18px 80px;
   }
 
+  /* Spacious 2x2 Metrics */
   .metrics-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 12px;
+    margin-bottom: 22px;
   }
 
   .metric-card {
-    padding: 12px 14px;
+    padding: 16px 16px;
+    border-radius: 14px;
   }
 
   .metric-label {
-    font-size: 0.7rem;
-    margin-bottom: 4px;
+    font-size: 0.72rem;
+    margin-bottom: 6px;
   }
 
   .metric-val {
-    font-size: clamp(1.15rem, 4.5vw, 1.4rem);
+    font-size: clamp(1.2rem, 4.6vw, 1.45rem);
   }
 
+  .progress-wrap {
+    padding: 18px 18px;
+    margin-bottom: 24px;
+    border-radius: 14px;
+  }
+
+  /* Spacious Ledger Controls */
   .ledger-header {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 12px;
+    margin-bottom: 18px;
   }
 
   .filters-row {
     flex-direction: column;
     min-width: 100%;
-    gap: 8px;
+    gap: 10px;
+  }
+
+  .search-wrap input {
+    padding: 12px 38px 12px 14px;
+    font-size: 0.95rem;
+    min-height: 46px;
+    border-radius: 10px;
+  }
+
+  .select-input {
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    min-height: 46px;
+    border-radius: 10px;
   }
 
   #btnOpenAddModal {
     width: 100%;
-    min-height: 42px;
+    min-height: 48px;
+    font-size: 0.96rem;
+    border-radius: 10px;
   }
 
+  /* Spacious Mobile Cards */
+  .mobile-cards-list {
+    gap: 12px;
+  }
+
+  .card-item-mobile {
+    padding: 18px 16px;
+    border-radius: 14px;
+    margin-bottom: 2px;
+  }
+
+  .card-item-top {
+    margin-bottom: 8px;
+    gap: 12px;
+  }
+
+  .card-item-title {
+    font-size: 1.02rem;
+  }
+
+  .card-item-amount {
+    font-size: 1.25rem;
+  }
+
+  .card-item-meta {
+    font-size: 0.82rem;
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+
+  .card-item-notes {
+    padding: 8px 12px;
+    font-size: 0.84rem;
+    margin-bottom: 12px;
+    border-radius: 8px;
+  }
+
+  .card-item-bottom {
+    padding-top: 12px;
+  }
+
+  /* Centered, Floating Modal on Mobile */
   .modal-backdrop {
-    align-items: flex-end;
-    padding: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px 40px;
   }
 
   .modal-box {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    max-height: 85vh;
+    border-radius: 16px;
+    max-height: 86vh;
+    width: 100%;
+    max-width: 440px;
+    margin: auto;
   }
 
   .modal-box form {
-    padding: 16px 18px 24px;
-    max-height: calc(85vh - 55px);
+    padding: 20px 18px 30px;
+    max-height: calc(86vh - 65px);
+    scroll-padding-bottom: 140px;
   }
 
   .modal-footer {
     display: flex;
     flex-direction: row;
-    gap: 10px;
-    margin-top: 16px;
+    gap: 12px;
+    margin-top: 20px;
   }
 
   .modal-footer .btn {
     flex: 1;
-    min-height: 44px;
+    min-height: 48px;
+    font-size: 0.94rem;
+    border-radius: 10px;
   }
 
   .modal-footer-pad {
-    padding: 0 18px 20px;
+    padding: 0 20px 24px;
   }
 
   .form-row {
