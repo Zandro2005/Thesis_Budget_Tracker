@@ -55,9 +55,18 @@ export function setupModals() {
     field.addEventListener("focus", () => {
       setTimeout(() => {
         field.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 320);
+      }, 300);
     });
   });
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", () => {
+      const active = document.activeElement;
+      if (active && (active.tagName === "INPUT" || active.tagName === "SELECT" || active.tagName === "TEXTAREA")) {
+        active.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  }
 }
 
 export function updateAdminUI() {

@@ -495,29 +495,39 @@ body {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
   z-index: 1000;
   padding: 16px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-box {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  width: 100%;
-  max-height: 90vh;
+  border-radius: 16px;
+  width: min(440px, 92vw);
+  max-height: 84vh;
+  max-height: 84dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.7);
+  margin: auto;
 }
 
-.modal-sm { max-width: 400px; }
-.modal-md { max-width: 520px; }
+.modal-sm { max-width: 380px; }
+.modal-md { max-width: 440px; }
 
 .modal-header {
   padding: 16px 20px;
@@ -747,47 +757,48 @@ form {
     padding-top: 12px;
   }
 
-  /* Centered, Floating Modal on Mobile */
+  /* Dead-Center Floating Modal on Mobile */
   .modal-backdrop {
-    align-items: center;
-    justify-content: center;
-    padding: 24px 16px 40px;
+    display: grid;
+    place-items: center;
+    padding: 16px;
   }
 
   .modal-box {
     border-radius: 16px;
-    max-height: 86vh;
-    width: 100%;
-    max-width: 440px;
+    max-height: 84vh;
+    max-height: 84dvh;
+    width: min(420px, 94vw);
     margin: auto;
   }
 
   .modal-box form {
-    padding: 20px 18px 30px;
-    max-height: calc(86vh - 65px);
-    scroll-padding-bottom: 140px;
+    padding: 16px 16px 20px;
+    max-height: calc(84dvh - 58px);
+    scroll-padding-bottom: 120px;
   }
 
   .modal-footer {
     display: flex;
     flex-direction: row;
-    gap: 12px;
-    margin-top: 20px;
+    gap: 10px;
+    margin-top: 16px;
   }
 
   .modal-footer .btn {
     flex: 1;
-    min-height: 48px;
-    font-size: 0.94rem;
-    border-radius: 10px;
+    min-height: 44px;
+    font-size: 0.92rem;
+    border-radius: 8px;
   }
 
   .modal-footer-pad {
-    padding: 0 20px 24px;
+    padding: 0 16px 20px;
   }
 
   .form-row {
-    grid-template-columns: 1fr;
-    gap: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 }
