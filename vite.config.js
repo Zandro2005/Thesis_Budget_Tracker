@@ -124,6 +124,31 @@ function localApiDevPlugin() {
             return sendJson(401, { success: false, message: "Unauthorized. Admin password required." });
           }
 
+          if (
+            (pathname === "/api/sync" && method === "POST") ||
+            (pathname === "/api/ledger" && method === "PUT")
+          ) {
+            const body = await parseBody();
+            if (body && Array.isArray(body.expenses)) {
+              const map = new Map();
+              for (const exp of ledger.expenses || []) {
+                if (exp && exp.id) map.set(String(exp.id), exp);
+              }
+              for (const exp of body.expenses) {
+                if (exp && exp.id) map.set(String(exp.id), exp);
+              }
+              ledger.expenses = Array.from(map.values()).sort((a, b) => {
+                return String(b.date || "").localeCompare(String(a.date || ""));
+              });
+              if (typeof body.totalBudget === "number" && body.totalBudget > 0) {
+                ledger.totalBudget = body.totalBudget;
+              }
+              ledger.updatedAt = new Date().toISOString();
+              writeData(ledger);
+              return sendJson(200, ledger);
+            }
+          }
+
           if (pathname === "/api/budget" && method === "PUT") {
             const body = await parseBody();
             if (typeof body.totalBudget === "number" && body.totalBudget > 0) {
@@ -144,8 +169,9 @@ function localApiDevPlugin() {
             if (!item || isNaN(amount) || amount <= 0) {
               return sendJson(400, { success: false, message: "Invalid item or amount." });
             }
+            const id = String(body.id || ("exp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6)));
             const newExp = {
-              id: "exp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+              id,
               date: (body.date || new Date().toISOString().split("T")[0]).trim(),
               item,
               category: (body.category || "Miscellaneous").trim(),
@@ -153,7 +179,14 @@ function localApiDevPlugin() {
               paidBy: (body.paidBy || "Unspecified").trim(),
               notes: (body.notes || "").trim()
             };
-            ledger.expenses.unshift(newExp);
+
+            const existingIdx = (ledger.expenses || []).findIndex((e) => String(e.id) === id);
+            if (existingIdx !== -1) {
+              ledger.expenses[existingIdx] = newExp;
+            } else {
+              ledger.expenses.unshift(newExp);
+            }
+
             ledger.updatedAt = new Date().toISOString();
             writeData(ledger);
             return sendJson(201, ledger);
@@ -161,7 +194,7 @@ function localApiDevPlugin() {
 
           if (pathname.startsWith("/api/expenses/") && method === "PUT") {
             const id = pathname.replace("/api/expenses/", "");
-            const index = ledger.expenses.findIndex((e) => e.id === id);
+            const index = (ledger.expenses || []).findIndex((e) => String(e.id) === String(id));
             if (index === -1) {
               return sendJson(404, { success: false, message: "Expense not found." });
             }
@@ -187,11 +220,7 @@ function localApiDevPlugin() {
 
           if (pathname.startsWith("/api/expenses/") && method === "DELETE") {
             const id = pathname.replace("/api/expenses/", "");
-            const originalLen = ledger.expenses.length;
-            ledger.expenses = ledger.expenses.filter((e) => e.id !== id);
-            if (ledger.expenses.length === originalLen) {
-              return sendJson(404, { success: false, message: "Expense not found." });
-            }
+            ledger.expenses = (ledger.expenses || []).filter((e) => String(e.id) !== String(id));
             ledger.updatedAt = new Date().toISOString();
             writeData(ledger);
             return sendJson(200, ledger);

@@ -30,7 +30,18 @@ export function openModal(id) {
 
 export function closeModal(id) {
   const el = document.getElementById(id);
-  if (el) el.classList.add("hidden");
+  if (el) {
+    el.classList.add("hidden");
+    if (id === "modalExpense") {
+      const idInput = document.getElementById("expenseIdInput");
+      if (idInput) idInput.value = "";
+      const form = document.getElementById("formExpense");
+      if (form) form.reset();
+    }
+    if (id === "modalDelete") {
+      deleteTargetId = null;
+    }
+  }
 }
 
 export function setupModals() {
@@ -184,10 +195,10 @@ export function setupAdminActions(showToast) {
           updated = await addExpense(payload);
           showToast("Expense added.");
         }
+        closeModal("modalExpense");
         setLedgerData(updated);
         renderSummary();
         renderLedger(isAdminUnlocked());
-        closeModal("modalExpense");
       } catch (err) {
         showToast(err.message || "Failed to save.");
       } finally {
@@ -203,7 +214,8 @@ export function setupAdminActions(showToast) {
 
     if (editBtn) {
       const id = editBtn.getAttribute("data-id");
-      const exp = getLedgerData().expenses.find((item) => item.id === id);
+      if (!id) return;
+      const exp = getLedgerData().expenses.find((item) => String(item.id) === String(id));
       if (!exp) return;
 
       document.getElementById("expenseIdInput").value = exp.id;
@@ -218,8 +230,10 @@ export function setupAdminActions(showToast) {
     }
 
     if (delBtn) {
-      deleteTargetId = delBtn.getAttribute("data-id");
-      document.getElementById("deleteItemName").textContent = delBtn.getAttribute("data-item");
+      const id = delBtn.getAttribute("data-id");
+      if (!id) return;
+      deleteTargetId = String(id);
+      document.getElementById("deleteItemName").textContent = delBtn.getAttribute("data-item") || "Expense";
       document.getElementById("deleteItemAmount").textContent = formatPeso(delBtn.getAttribute("data-amount"));
       openModal("modalDelete");
     }
@@ -235,20 +249,25 @@ export function setupAdminActions(showToast) {
   const confirmDel = document.getElementById("btnConfirmDelete");
   if (confirmDel) {
     confirmDel.addEventListener("click", async () => {
-      if (!deleteTargetId) return;
+      const idToDelete = deleteTargetId;
+      deleteTargetId = null;
+      if (!idToDelete) {
+        closeModal("modalDelete");
+        return;
+      }
+
       confirmDel.disabled = true;
       try {
-        const updated = await deleteExpense(deleteTargetId);
+        const updated = await deleteExpense(idToDelete);
+        closeModal("modalDelete");
         setLedgerData(updated);
         renderSummary();
         renderLedger(isAdminUnlocked());
-        closeModal("modalDelete");
         showToast("Expense deleted.");
       } catch (err) {
         showToast(err.message || "Failed to delete.");
       } finally {
         confirmDel.disabled = false;
-        deleteTargetId = null;
       }
     });
   }

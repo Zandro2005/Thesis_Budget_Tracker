@@ -25,8 +25,30 @@ try {
   console.warn("Could not load seed data/ledger.json:", e.message);
 }
 
-// In-memory fallback if Blobs environment is not provisioned
+// In-memory fallback
 let inMemoryLedger = JSON.parse(JSON.stringify(DEFAULT_DATA));
+
+// Lambda /tmp secondary cache file
+const TMP_FILE = path.join("/tmp", "thesis_budget_ledger.json");
+
+function readTmpLedger() {
+  try {
+    if (fs.existsSync(TMP_FILE)) {
+      const raw = fs.readFileSync(TMP_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.expenses)) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function writeTmpLedger(data) {
+  try {
+    fs.writeFileSync(TMP_FILE, JSON.stringify(data), "utf-8");
+  } catch {}
+}
 
 function checkAuth(req) {
   const adminPassword = process.env.ADMIN_PASSWORD || "0907133ado";
@@ -36,31 +58,46 @@ function checkAuth(req) {
 
 async function getStoreSafe() {
   try {
-    const store = getStore("thesis_budget");
+    const store = getStore({ name: "thesis_budget", consistency: "strong" });
     return store;
   } catch (err) {
-    console.warn("Netlify Blobs unavailable in this environment:", err.message);
-    return null;
+    try {
+      const store = getStore("thesis_budget");
+      return store;
+    } catch (e) {
+      console.warn("Netlify Blobs unavailable in this environment:", e.message);
+      return null;
+    }
   }
 }
 
 async function loadLedger(store) {
   if (store) {
     try {
-      const data = await store.get("ledger_data", { type: "json" });
-      if (data) return data;
-      // Initialize with baseline data
-      await store.setJSON("ledger_data", inMemoryLedger);
-      return inMemoryLedger;
+      const data = await store.get("ledger_data", { type: "json", consistency: "strong" });
+      if (data && Array.isArray(data.expenses)) {
+        inMemoryLedger = data;
+        writeTmpLedger(data);
+        return data;
+      }
     } catch (err) {
-      console.warn("Store read error, using fallback:", err.message);
+      console.warn("Store read error, attempting /tmp fallback:", err.message);
     }
   }
+
+  // Fallback to /tmp filesystem cache
+  const tmpData = readTmpLedger();
+  if (tmpData && Array.isArray(tmpData.expenses) && tmpData.expenses.length > 0) {
+    inMemoryLedger = tmpData;
+    return tmpData;
+  }
+
   return inMemoryLedger;
 }
 
 async function saveLedger(store, data) {
   inMemoryLedger = data;
+  writeTmpLedger(data);
   if (store) {
     try {
       await store.setJSON("ledger_data", data);
@@ -132,7 +169,45 @@ export default async (req, context) => {
       );
     }
 
-    // 3. POST /api/expenses
+    // 3. POST /api/sync or PUT /api/ledger - Full sync from client
+    if (
+      (pathname === "/api/sync" && method === "POST") ||
+      (pathname === "/api/ledger" && method === "PUT")
+    ) {
+      const body = await req.json();
+      if (body && Array.isArray(body.expenses)) {
+        // Merge client expenses with existing server expenses by ID
+        const map = new Map();
+        for (const exp of ledger.expenses || []) {
+          if (exp && exp.id) map.set(String(exp.id), exp);
+        }
+        for (const exp of body.expenses) {
+          if (exp && exp.id) map.set(String(exp.id), exp);
+        }
+        ledger.expenses = Array.from(map.values()).sort((a, b) => {
+          return String(b.date || "").localeCompare(String(a.date || ""));
+        });
+        if (typeof body.totalBudget === "number" && body.totalBudget > 0) {
+          ledger.totalBudget = body.totalBudget;
+        }
+        ledger.updatedAt = new Date().toISOString();
+        await saveLedger(store, ledger);
+        return new Response(JSON.stringify(ledger), { status: 200, headers: responseHeaders });
+      }
+    }
+
+    // 4. PUT /api/budget - Update budget cap
+    if (pathname === "/api/budget" && method === "PUT") {
+      const body = await req.json();
+      if (typeof body.totalBudget === "number" && body.totalBudget > 0) {
+        ledger.totalBudget = body.totalBudget;
+      }
+      ledger.updatedAt = new Date().toISOString();
+      await saveLedger(store, ledger);
+      return new Response(JSON.stringify(ledger), { status: 200, headers: responseHeaders });
+    }
+
+    // 5. POST /api/expenses - Add an expense
     if (pathname === "/api/expenses" && method === "POST") {
       const body = await req.json();
       const amount = parseFloat(body.amount);
@@ -149,8 +224,10 @@ export default async (req, context) => {
         );
       }
 
+      const id = String(body.id || `exp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+
       const newExpense = {
-        id: "exp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+        id,
         date,
         item,
         category,
@@ -159,17 +236,24 @@ export default async (req, context) => {
         notes
       };
 
-      ledger.expenses.unshift(newExpense);
+      // Check if already exists (avoid duplicate)
+      const existingIdx = (ledger.expenses || []).findIndex((e) => String(e.id) === id);
+      if (existingIdx !== -1) {
+        ledger.expenses[existingIdx] = newExpense;
+      } else {
+        ledger.expenses = [newExpense, ...(ledger.expenses || [])];
+      }
+
       ledger.updatedAt = new Date().toISOString();
       await saveLedger(store, ledger);
 
       return new Response(JSON.stringify(ledger), { status: 201, headers: responseHeaders });
     }
 
-    // 4. PUT /api/expenses/:id
+    // 6. PUT /api/expenses/:id - Edit an expense
     if (pathname.includes("/api/expenses/") && method === "PUT") {
       const id = pathname.split("/api/expenses/")[1]?.split("/")[0]?.split("?")[0];
-      const index = ledger.expenses.findIndex((e) => e.id === id);
+      const index = (ledger.expenses || []).findIndex((e) => String(e.id) === String(id));
       if (index === -1) {
         return new Response(
           JSON.stringify({ success: false, message: "Expense not found." }),
@@ -203,19 +287,10 @@ export default async (req, context) => {
       return new Response(JSON.stringify(ledger), { status: 200, headers: responseHeaders });
     }
 
-    // 5. DELETE /api/expenses/:id
+    // 7. DELETE /api/expenses/:id - Delete an expense (Idempotent)
     if (pathname.includes("/api/expenses/") && method === "DELETE") {
       const id = pathname.split("/api/expenses/")[1]?.split("/")[0]?.split("?")[0];
-      const initLen = ledger.expenses.length;
-      ledger.expenses = ledger.expenses.filter((e) => e.id !== id);
-
-      if (ledger.expenses.length === initLen) {
-        return new Response(
-          JSON.stringify({ success: false, message: "Expense not found." }),
-          { status: 404, headers: responseHeaders }
-        );
-      }
-
+      ledger.expenses = (ledger.expenses || []).filter((e) => String(e.id) !== String(id));
       ledger.updatedAt = new Date().toISOString();
       await saveLedger(store, ledger);
 

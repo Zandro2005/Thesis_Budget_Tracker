@@ -1,7 +1,8 @@
-// API Client with resilient localStorage persistence for Thesis Budget Tracker
+// API Client with resilient localStorage persistence and two-way sync for Thesis Budget Tracker
 
 const STORAGE_KEY_PW = "thesis_budget_admin_pw";
 const STORAGE_KEY_LEDGER = "thesis_budget_ledger_cache";
+const STORAGE_KEY_DELETED = "thesis_budget_deleted_ids";
 
 export function getAdminPassword() {
   return sessionStorage.getItem(STORAGE_KEY_PW) || "";
@@ -19,10 +20,50 @@ export function isAdminUnlocked() {
   return Boolean(getAdminPassword());
 }
 
+export function generateExpenseId() {
+  return `exp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function getDeletedIds() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_DELETED);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function markAsDeleted(id) {
+  if (!id) return;
+  try {
+    const ids = getDeletedIds();
+    ids.add(String(id));
+    localStorage.setItem(STORAGE_KEY_DELETED, JSON.stringify([...ids]));
+  } catch (e) {
+    console.warn("Could not record deleted ID:", e);
+  }
+}
+
+export function unmarkAsDeleted(id) {
+  if (!id) return;
+  try {
+    const ids = getDeletedIds();
+    ids.delete(String(id));
+    localStorage.setItem(STORAGE_KEY_DELETED, JSON.stringify([...ids]));
+  } catch (e) {
+    console.warn("Could not unmark deleted ID:", e);
+  }
+}
+
 export function getCachedLedger() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_LEDGER);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.expenses)) {
+      return parsed;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -36,6 +77,70 @@ export function saveCachedLedger(data) {
   } catch (e) {
     console.warn("Could not cache ledger to localStorage:", e);
   }
+}
+
+/**
+ * Merge local and remote ledgers safely.
+ * 1. Honors tombstones (deleted IDs are NEVER resurrected).
+ * 2. Deduplicates by ID.
+ * 3. Never deletes local expenses that the server might have missed during cold restarts.
+ */
+export function mergeLedgers(local, remote) {
+  const deletedIds = getDeletedIds();
+
+  const base = {
+    totalBudget: (remote && remote.totalBudget) || (local && local.totalBudget) || 15000,
+    currency: (remote && remote.currency) || (local && local.currency) || "PHP",
+    title: (remote && remote.title) || (local && local.title) || "Thesis Capstone Budget",
+    updatedAt: new Date().toISOString()
+  };
+
+  const localList = (local && Array.isArray(local.expenses)) ? local.expenses : [];
+  const remoteList = (remote && Array.isArray(remote.expenses)) ? remote.expenses : [];
+
+  const map = new Map();
+
+  // 1. Ingest remote expenses (skip any deleted items)
+  for (const exp of remoteList) {
+    if (exp && exp.id) {
+      const sid = String(exp.id);
+      if (!deletedIds.has(sid)) {
+        map.set(sid, {
+          ...exp,
+          id: sid,
+          amount: Number(exp.amount) || 0
+        });
+      }
+    }
+  }
+
+  // 2. Ingest local expenses (preserve newly added items that remote hasn't seen yet)
+  for (const exp of localList) {
+    if (exp && exp.id) {
+      const sid = String(exp.id);
+      if (!deletedIds.has(sid)) {
+        if (!map.has(sid)) {
+          map.set(sid, {
+            ...exp,
+            id: sid,
+            amount: Number(exp.amount) || 0
+          });
+        }
+      }
+    }
+  }
+
+  // 3. Stable sort by date descending (newest first)
+  const mergedExpenses = Array.from(map.values()).sort((a, b) => {
+    const da = a.date || "";
+    const db = b.date || "";
+    return db.localeCompare(da);
+  });
+
+  return {
+    ...base,
+    expenses: mergedExpenses
+  };
 }
 
 async function request(endpoint, options = {}) {
@@ -75,17 +180,16 @@ export async function fetchLedger() {
   try {
     const data = await request("/api/ledger", { method: "GET" });
     if (data && Array.isArray(data.expenses)) {
-      // If server returned expenses, persist to local cache
-      if (data.expenses.length > 0) {
-        saveCachedLedger(data);
-        return data;
+      const merged = mergeLedgers(cached, data);
+      saveCachedLedger(merged);
+
+      // If client has items that the server is missing (e.g. server restarted or Blobs was empty),
+      // push a background sync so group members can see them too.
+      if (isAdminUnlocked() && Array.isArray(merged.expenses) && merged.expenses.length > data.expenses.length) {
+        syncToServer(merged).catch(() => {});
       }
-      // If server is empty but client has cached data, prioritize client data to prevent accidental loss
-      if (cached && cached.expenses && cached.expenses.length > 0) {
-        return cached;
-      }
-      saveCachedLedger(data);
-      return data;
+
+      return merged;
     }
     return cached || data;
   } catch (err) {
@@ -113,76 +217,133 @@ export async function authenticateAdmin(password) {
 }
 
 export async function addExpense(expenseData) {
+  const newId = expenseData.id || generateExpenseId();
+  unmarkAsDeleted(newId);
+
+  const newExp = {
+    ...expenseData,
+    id: newId,
+    amount: Number(expenseData.amount) || 0
+  };
+
+  // Step 1: Immediate local state update so nothing is ever lost
+  const cached = getCachedLedger() || {
+    totalBudget: 15000,
+    currency: "PHP",
+    title: "Thesis Capstone Budget",
+    expenses: []
+  };
+
+  const existingExpenses = (cached.expenses || []).filter((e) => String(e.id) !== String(newId));
+  cached.expenses = [newExp, ...existingExpenses];
+  cached.updatedAt = new Date().toISOString();
+  saveCachedLedger(cached);
+
+  // Step 2: Push to server
   try {
     const result = await request("/api/expenses", {
       method: "POST",
-      body: JSON.stringify(expenseData)
+      body: JSON.stringify(newExp)
     });
-    saveCachedLedger(result);
-    return result;
+    // Merge server return with local cache to preserve any existing expenses
+    const merged = mergeLedgers(cached, result);
+    saveCachedLedger(merged);
+    return merged;
   } catch (err) {
-    console.warn("Backend add failed, saving to local cache:", err.message);
-    const cached = getCachedLedger() || {
-      totalBudget: 15000,
-      currency: "PHP",
-      title: "Thesis Capstone Budget",
-      expenses: []
-    };
-    const newExp = {
-      id: "exp-" + Date.now(),
-      ...expenseData
-    };
-    cached.expenses.unshift(newExp);
-    cached.updatedAt = new Date().toISOString();
-    saveCachedLedger(cached);
+    console.warn("Backend add failed, saved locally:", err.message);
     return cached;
   }
 }
 
 export async function updateExpense(id, expenseData) {
+  const strId = String(id);
+  const cached = getCachedLedger() || {
+    totalBudget: 15000,
+    currency: "PHP",
+    title: "Thesis Capstone Budget",
+    expenses: []
+  };
+
+  const idx = (cached.expenses || []).findIndex((e) => String(e.id) === strId);
+  if (idx !== -1) {
+    cached.expenses[idx] = {
+      ...cached.expenses[idx],
+      ...expenseData,
+      id: strId,
+      amount: Number(expenseData.amount) || 0
+    };
+  }
+  cached.updatedAt = new Date().toISOString();
+  saveCachedLedger(cached);
+
   try {
-    const result = await request(`/api/expenses/${id}`, {
+    const result = await request(`/api/expenses/${encodeURIComponent(strId)}`, {
       method: "PUT",
       body: JSON.stringify(expenseData)
     });
-    saveCachedLedger(result);
-    return result;
+    const merged = mergeLedgers(cached, result);
+    saveCachedLedger(merged);
+    return merged;
   } catch (err) {
-    console.warn("Backend update failed, saving to local cache:", err.message);
-    const cached = getCachedLedger() || {
-      totalBudget: 15000,
-      currency: "PHP",
-      title: "Thesis Capstone Budget",
-      expenses: []
-    };
-    const idx = cached.expenses.findIndex((e) => e.id === id);
-    if (idx !== -1) {
-      cached.expenses[idx] = { ...cached.expenses[idx], ...expenseData };
-    }
-    cached.updatedAt = new Date().toISOString();
-    saveCachedLedger(cached);
+    console.warn("Backend update failed, saved locally:", err.message);
     return cached;
   }
 }
 
 export async function deleteExpense(id) {
-  try {
-    const result = await request(`/api/expenses/${id}`, {
-      method: "DELETE"
-    });
-    saveCachedLedger(result);
-    return result;
-  } catch (err) {
-    console.warn("Backend delete failed, saving to local cache:", err.message);
-    const cached = getCachedLedger() || {
+  if (!id) {
+    return getCachedLedger() || {
       totalBudget: 15000,
       currency: "PHP",
       title: "Thesis Capstone Budget",
       expenses: []
     };
-    cached.expenses = cached.expenses.filter((e) => e.id !== id);
-    cached.updatedAt = new Date().toISOString();
-    saveCachedLedger(cached);
+  }
+
+  const strId = String(id);
+  // Mark tombstone so it can never be accidentally resurrected
+  markAsDeleted(strId);
+
+  // Step 1: Remove ONLY this id locally immediately
+  const cached = getCachedLedger() || {
+    totalBudget: 15000,
+    currency: "PHP",
+    title: "Thesis Capstone Budget",
+    expenses: []
+  };
+
+  cached.expenses = (cached.expenses || []).filter((e) => String(e.id) !== strId);
+  cached.updatedAt = new Date().toISOString();
+  saveCachedLedger(cached);
+
+  // Step 2: Tell server to delete
+  try {
+    const result = await request(`/api/expenses/${encodeURIComponent(strId)}`, {
+      method: "DELETE"
+    });
+    const merged = mergeLedgers(cached, result);
+    // Guarantee this id is absent from result
+    merged.expenses = (merged.expenses || []).filter((e) => String(e.id) !== strId);
+    saveCachedLedger(merged);
+    return merged;
+  } catch (err) {
+    console.warn("Backend delete failed, removed locally:", err.message);
     return cached;
   }
+}
+
+export async function syncToServer(ledgerData) {
+  try {
+    const result = await request("/api/sync", {
+      method: "POST",
+      body: JSON.stringify(ledgerData)
+    });
+    if (result && Array.isArray(result.expenses)) {
+      saveCachedLedger(result);
+      return result;
+    }
+  } catch (err) {
+    console.warn("Sync to server failed:", err.message);
+  }
+  return ledgerData;
 }

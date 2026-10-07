@@ -13,10 +13,34 @@ let currentFilter = {
 
 export function setLedgerData(data) {
   if (data) {
+    const rawExpenses = Array.isArray(data.expenses) ? data.expenses : [];
+    const seenIds = new Set();
+    const sanitizedExpenses = [];
+
+    for (const exp of rawExpenses) {
+      if (!exp) continue;
+      let id = exp.id ? String(exp.id).trim() : "";
+      if (!id || seenIds.has(id)) {
+        id = `exp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      }
+      seenIds.add(id);
+
+      sanitizedExpenses.push({
+        ...exp,
+        id,
+        date: exp.date || new Date().toISOString().split("T")[0],
+        item: String(exp.item || "").trim(),
+        category: String(exp.category || "Miscellaneous").trim(),
+        amount: Number(exp.amount) || 0,
+        paidBy: String(exp.paidBy || "All Members").trim(),
+        notes: String(exp.notes || "").trim()
+      });
+    }
+
     currentLedger = {
       ...currentLedger,
       ...data,
-      expenses: Array.isArray(data.expenses) ? data.expenses : []
+      expenses: sanitizedExpenses
     };
   }
 }
