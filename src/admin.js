@@ -171,7 +171,7 @@ export function setupAdminActions(showToast) {
         }
         setLedgerData(updated);
         renderSummary();
-        renderLedger(true);
+        renderLedger(isAdminUnlocked());
         closeModal("modalExpense");
       } catch (err) {
         showToast(err.message || "Failed to save.");
@@ -226,7 +226,7 @@ export function setupAdminActions(showToast) {
         const updated = await deleteExpense(deleteTargetId);
         setLedgerData(updated);
         renderSummary();
-        renderLedger(true);
+        renderLedger(isAdminUnlocked());
         closeModal("modalDelete");
         showToast("Expense deleted.");
       } catch (err) {

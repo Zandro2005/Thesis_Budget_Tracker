@@ -1,13 +1,7 @@
 import { getStore } from "@netlify/blobs";
 
 export const config = {
-  path: [
-    "/api/ledger",
-    "/api/auth",
-    "/api/expenses",
-    "/api/expenses/:id",
-    "/api/budget"
-  ]
+  path: "/api/*"
 };
 
 const DEFAULT_DATA = {
@@ -15,46 +9,22 @@ const DEFAULT_DATA = {
   currency: "PHP",
   title: "Thesis Capstone Budget",
   updatedAt: new Date().toISOString(),
-  expenses: [
-    {
-      id: "seed-1",
-      date: "2026-10-01",
-      item: "Survey Questionnaires Pilot Print (50 sets)",
-      category: "Printing & Binding",
-      amount: 450,
-      paidBy: "Team Lead",
-      notes: "Initial pilot test copies"
-    },
-    {
-      id: "seed-2",
-      date: "2026-10-03",
-      item: "Prototype Components & Materials",
-      category: "Materials & Supplies",
-      amount: 1850,
-      paidBy: "Hardware Lead",
-      notes: "Sensors and test harness"
-    },
-    {
-      id: "seed-3",
-      date: "2026-10-05",
-      item: "Field Research Transportation Fare",
-      category: "Transportation",
-      amount: 620,
-      paidBy: "All Members",
-      notes: "Site visit and interviews"
-    }
-  ]
+  expenses: []
 };
 
 function checkAuth(req) {
   const adminPassword = process.env.ADMIN_PASSWORD || "0907133ado";
   const providedPassword = req.headers.get("x-admin-password");
-  return providedPassword && providedPassword === adminPassword;
+  return Boolean(providedPassword && providedPassword === adminPassword);
 }
 
 export default async (req, context) => {
   const url = new URL(req.url);
-  const pathname = url.pathname;
+  let pathname = url.pathname;
+  if (pathname.includes("/.netlify/functions/ledger")) {
+    pathname = pathname.replace("/.netlify/functions/ledger", "") || "/api/ledger";
+    if (!pathname.startsWith("/api")) pathname = "/api" + pathname;
+  }
   const method = req.method.toUpperCase();
 
   // Handle CORS preflight if called cross-origin

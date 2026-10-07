@@ -124,6 +124,11 @@ export function renderLedger(isAdmin = false) {
   const emptyState = document.getElementById("emptyState");
   const desktopTable = document.querySelector(".table-card");
   const mobileCards = document.getElementById("mobileCardsStream");
+  const tableBody = document.getElementById("ledgerTableBody");
+
+  // Clear existing items immediately to prevent ghost nodes or overlap bugs
+  if (tableBody) tableBody.innerHTML = "";
+  if (mobileCards) mobileCards.innerHTML = "";
 
   if (filtered.length === 0) {
     if (emptyState) emptyState.classList.remove("hidden");
@@ -137,7 +142,6 @@ export function renderLedger(isAdmin = false) {
   if (mobileCards) mobileCards.classList.remove("hidden");
 
   // 1. Desktop Table
-  const tableBody = document.getElementById("ledgerTableBody");
   if (tableBody) {
     tableBody.innerHTML = filtered
       .map((item) => `
