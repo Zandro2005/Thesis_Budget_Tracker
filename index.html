@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thesis Budget Tracker</title>
+  <meta name="description" content="Simple, transparent thesis budget tracking for group members." />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+
+  <!-- Mobile Sticky Remaining Bar -->
+  <div class="mobile-sticky-bar">
+    <div>
+      <span class="label-xs">REMAINING:</span>
+      <strong class="sticky-amount" id="stickyRemaining">₱15,000.00</strong>
+    </div>
+    <div class="sticky-btns">
+      <button class="btn btn-sm btn-outline" id="stickyAdminBtn">🔒 Admin</button>
+      <button class="btn btn-sm btn-primary" id="stickyAddBtn">+ Add</button>
+    </div>
+  </div>
+
+  <main class="container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div>
+        <h1 class="app-title">Thesis Budget Tracker</h1>
+        <p class="app-subtitle">Group budget & expense tracker • ₱15,000 Cap</p>
+      </div>
+      <div class="header-right">
+        <button class="btn btn-admin" id="btnAdminAuth">
+          <span id="adminLockIcon">🔒</span>
+          <span id="adminBtnLabel">Admin Unlock</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 4 Core Metrics (2x2 on mobile) -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <span class="metric-label">Total Budget</span>
+        <div class="metric-val">₱15,000.00</div>
+      </div>
+
+      <div class="metric-card">
+        <span class="metric-label">Total Spent</span>
+        <div class="metric-val text-spent" id="totalSpentDisplay">₱0.00</div>
+      </div>
+
+      <div class="metric-card highlight-card">
+        <span class="metric-label">Remaining</span>
+        <div class="metric-val text-remaining" id="totalRemainingDisplay">₱15,000.00</div>
+      </div>
+
+      <div class="metric-card">
+        <span class="metric-label">Budget Used</span>
+        <div class="metric-val" id="utilizationDisplay">0.0%</div>
+      </div>
+    </section>
+
+    <!-- Clean Progress Bar -->
+    <div class="progress-wrap">
+      <div class="progress-info">
+        <span>Budget Used: <strong id="spentPercentText">0%</strong></span>
+        <span id="remainingPercentText">100% Left</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+      </div>
+    </div>
+
+    <!-- Controls: Search, Category Filter, and Add Button -->
+    <section class="ledger-header">
+      <div class="filters-row">
+        <div class="search-wrap">
+          <input type="text" id="searchInput" placeholder="Search expenses or payer..." />
+          <button class="btn-clear hidden" id="btnClearSearch">&times;</button>
+        </div>
+        <select id="categoryFilter" class="select-input">
+          <option value="ALL">All Categories</option>
+          <option value="Printing & Binding">Printing & Binding</option>
+          <option value="Materials & Supplies">Materials & Supplies</option>
+          <option value="Transportation">Transportation</option>
+          <option value="Food & Refreshments">Food</option>
+          <option value="Software & Cloud">Software</option>
+          <option value="Survey & Tokens">Survey Tokens</option>
+          <option value="Miscellaneous">Miscellaneous</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="btnOpenAddModal">
+        + Add Expense
+      </button>
+    </section>
+
+    <!-- Desktop Table View -->
+    <div class="table-card desktop-only">
+      <table class="ledger-table">
+        <thead>
+          <tr>
+            <th style="width: 110px;">Date</th>
+            <th>Item / Purpose</th>
+            <th style="width: 170px;">Category</th>
+            <th style="width: 130px; text-align: right;">Amount</th>
+            <th style="width: 140px;">Paid By</th>
+            <th>Notes</th>
+            <th class="col-actions admin-only hidden" style="width: 90px; text-align: center;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="ledgerTableBody">
+          <!-- Rendered via JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile Cards View -->
+    <div class="mobile-cards-list mobile-only" id="mobileCardsStream">
+      <!-- Rendered via JS -->
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state hidden" id="emptyState">
+      <p>No expenses found.</p>
+    </div>
+  </main>
+
+  <!-- MODAL: Admin Password Unlock -->
+  <div class="modal-backdrop hidden" id="modalAdminAuth">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <h3>Admin Unlock</h3>
+        <button class="modal-close" data-close="modalAdminAuth">&times;</button>
+      </div>
+      <form id="formAdminAuth">
+        <div class="form-group">
+          <label for="adminPasswordInput">Admin Password</label>
+          <input type="password" id="adminPasswordInput" class="form-input" placeholder="Enter admin password" required autocomplete="current-password" />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close="modalAdminAuth">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitAuth">Unlock</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Add / Edit Expense -->
+  <div class="modal-backdrop hidden" id="modalExpense">
+    <div class="modal-box modal-md">
+      <div class="modal-header">
+        <h3 id="expenseModalTitle">Add Expense</h3>
+        <button class="modal-close" data-close="modalExpense">&times;</button>
+      </div>
+      <form id="formExpense">
+        <input type="hidden" id="expenseIdInput" value="" />
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="expenseDateInput">Date *</label>
+            <input type="date" id="expenseDateInput" class="form-input" required />
+          </div>
+          <div class="form-group">
+            <label for="expenseAmountInput">Amount (PHP ₱) *</label>
+            <input type="number" id="expenseAmountInput" class="form-input" placeholder="0.00" step="0.01" min="0.01" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="expenseItemInput">Item / Purpose *</label>
+          <input type="text" id="expenseItemInput" class="form-input" placeholder="e.g. Survey printing, sensor components" required />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="expenseCategorySelect">Category *</label>
+            <select id="expenseCategorySelect" class="form-input" required>
+              <option value="Printing & Binding">Printing & Binding</option>
+              <option value="Materials & Supplies">Materials & Supplies</option>
+              <option value="Transportation">Transportation</option>
+              <option value="Food & Refreshments">Food</option>
+              <option value="Software & Cloud">Software</option>
+              <option value="Survey & Tokens">Survey Tokens</option>
+              <option value="Miscellaneous">Miscellaneous</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="expensePaidByInput">Paid By</label>
+            <input type="text" id="expensePaidByInput" class="form-input" placeholder="e.g. Juan, Maria, or Group" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="expenseNotesInput">Notes (Optional)</label>
+          <input type="text" id="expenseNotesInput" class="form-input" placeholder="Receipt # or details..." />
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close="modalExpense">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveExpense">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Delete Confirm -->
+  <div class="modal-backdrop hidden" id="modalDelete">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <h3>Delete Expense?</h3>
+        <button class="modal-close" data-close="modalDelete">&times;</button>
+      </div>
+      <div class="modal-body-simple">
+        <p>Delete <strong id="deleteItemName">item</strong> (<span id="deleteItemAmount">₱0</span>)?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-close="modalDelete">Cancel</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmDelete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Alert -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

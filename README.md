@@ -35,7 +35,7 @@ Hosted on **Netlify** with **Netlify Functions** and **Netlify Blobs** for zero-
    > The local development server includes built-in API emulation, saving data to `.data/ledger.json` automatically.
 
 3. **Default Admin Password**:
-   - Password: `thesis2026`
+   - Password: `0907133ado`
 
 ---
 
