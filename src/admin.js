@@ -73,23 +73,20 @@ export function updateAdminUI() {
   const isUnlocked = isAdminUnlocked();
   const adminBtn = document.getElementById("btnAdminAuth");
   const adminLabel = document.getElementById("adminBtnLabel");
-  const adminIcon = document.getElementById("adminLockIcon");
   const stickyAdminBtn = document.getElementById("stickyAdminBtn");
 
-  if (adminBtn && adminLabel && adminIcon) {
+  if (adminBtn && adminLabel) {
     if (isUnlocked) {
       adminBtn.classList.add("unlocked");
-      adminLabel.textContent = "Admin Active (Lock)";
-      adminIcon.textContent = "🔓";
+      adminLabel.textContent = "Lock";
     } else {
       adminBtn.classList.remove("unlocked");
-      adminLabel.textContent = "Admin Unlock";
-      adminIcon.textContent = "🔒";
+      adminLabel.textContent = "Admin";
     }
   }
 
   if (stickyAdminBtn) {
-    stickyAdminBtn.textContent = isUnlocked ? "🔓 Lock" : "🔒 Admin";
+    stickyAdminBtn.textContent = isUnlocked ? "Lock" : "Admin";
   }
 
   renderLedger(isUnlocked);
