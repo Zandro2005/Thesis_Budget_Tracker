@@ -6,7 +6,12 @@ import {
   updateExpense,
   deleteExpense,
   isAdminUnlocked,
-  clearAdminPassword
+  clearAdminPassword,
+  fetchLedger,
+  isSupabaseConfigured,
+  getSupabaseConfig,
+  setSupabaseConfig,
+  testSupabaseConnection
 } from "./api.js";
 
 import {
@@ -40,6 +45,12 @@ export function closeModal(id) {
     }
     if (id === "modalDelete") {
       deleteTargetId = null;
+    }
+    if (id === "modalDatabase") {
+      const urlInput = document.getElementById("supabaseUrlInput");
+      const keyInput = document.getElementById("supabaseKeyInput");
+      if (urlInput) urlInput.value = "";
+      if (keyInput) keyInput.value = "";
     }
   }
 }
@@ -80,6 +91,37 @@ export function setupModals() {
   }
 }
 
+export function updateDatabaseUI() {
+  const isConfigured = isSupabaseConfigured();
+  const dbIndicator = document.getElementById("dbIndicator");
+  const stickyDbIndicator = document.getElementById("stickyDbIndicator");
+  const dbBtnLabel = document.getElementById("dbBtnLabel");
+  const dbStatusDot = document.getElementById("dbStatusDot");
+  const dbStatusText = document.getElementById("dbStatusText");
+  const btnDisconnect = document.getElementById("btnDisconnectDb");
+
+  if (dbIndicator) {
+    dbIndicator.className = isConfigured ? "db-indicator connected" : "db-indicator warning";
+  }
+  if (stickyDbIndicator) {
+    stickyDbIndicator.className = isConfigured ? "db-indicator connected" : "db-indicator warning";
+  }
+  if (dbBtnLabel) {
+    dbBtnLabel.textContent = isConfigured ? "PostgreSQL" : "Database";
+  }
+  if (dbStatusDot) {
+    dbStatusDot.className = isConfigured ? "db-status-dot connected" : "db-status-dot";
+  }
+  if (dbStatusText) {
+    dbStatusText.textContent = isConfigured
+      ? "Connected to Supabase PostgreSQL Database"
+      : "Using Local & Server Storage (Supabase not connected)";
+  }
+  if (btnDisconnect) {
+    btnDisconnect.style.display = isConfigured ? "inline-block" : "none";
+  }
+}
+
 export function updateAdminUI() {
   const isUnlocked = isAdminUnlocked();
   const adminBtn = document.getElementById("btnAdminAuth");
@@ -100,10 +142,109 @@ export function updateAdminUI() {
     stickyAdminBtn.textContent = isUnlocked ? "Lock" : "Admin";
   }
 
+  // Database settings button is strictly admin-only
+  const dbBtn = document.getElementById("btnOpenDbModal");
+  const stickyDbBtn = document.getElementById("stickyDbBtn");
+  if (dbBtn) dbBtn.classList.toggle("hidden", !isUnlocked);
+  if (stickyDbBtn) stickyDbBtn.classList.toggle("hidden", !isUnlocked);
+
   renderLedger(isUnlocked);
+  updateDatabaseUI();
 }
 
 export function setupAdminActions(showToast) {
+  // Database Modal openers - strictly protected behind admin mode
+  const openDbModal = () => {
+    if (!isAdminUnlocked()) {
+      showToast("Unlock admin to manage database settings.");
+      openModal("modalAdminAuth");
+      return;
+    }
+
+    const { url, key } = getSupabaseConfig();
+    const urlInput = document.getElementById("supabaseUrlInput");
+    const keyInput = document.getElementById("supabaseKeyInput");
+
+    if (urlInput) urlInput.value = url || "";
+    if (keyInput) {
+      keyInput.value = key ? "••••••••••••••••••••••••••••••••" : "";
+      keyInput.setAttribute("data-has-existing", key ? "true" : "false");
+    }
+
+    updateDatabaseUI();
+    openModal("modalDatabase");
+  };
+
+  const dbBtn = document.getElementById("btnOpenDbModal");
+  if (dbBtn) dbBtn.addEventListener("click", openDbModal);
+
+  const stickyDbBtn = document.getElementById("stickyDbBtn");
+  if (stickyDbBtn) stickyDbBtn.addEventListener("click", openDbModal);
+
+  // Database Form Submit (Test & Save)
+  const dbForm = document.getElementById("formDatabase");
+  if (dbForm) {
+    dbForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const url = (document.getElementById("supabaseUrlInput").value || "").trim();
+      let key = (document.getElementById("supabaseKeyInput").value || "").trim();
+      const keyInput = document.getElementById("supabaseKeyInput");
+      const saveBtn = document.getElementById("btnSaveDbConfig");
+
+      // If user kept the masked dots, preserve the already-configured key
+      if (key.startsWith("••••") && keyInput.getAttribute("data-has-existing") === "true") {
+        key = getSupabaseConfig().key;
+      }
+
+      if (!url || !key) {
+        showToast("Please enter both Supabase URL and Key.");
+        return;
+      }
+
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Testing...";
+      }
+
+      try {
+        const testRes = await testSupabaseConnection(url, key);
+        if (!testRes.success) {
+          throw new Error(testRes.error || "Connection failed. Check your URL and Key.");
+        }
+
+        setSupabaseConfig(url, key);
+        updateDatabaseUI();
+        showToast("Connected to Supabase database!");
+
+        // Reload data from Supabase
+        const fresh = await fetchLedger();
+        setLedgerData(fresh);
+        renderSummary();
+        renderLedger(isAdminUnlocked());
+        closeModal("modalDatabase");
+      } catch (err) {
+        showToast(`Supabase: ${err.message}`);
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Test & Save";
+        }
+      }
+    });
+  }
+
+  // Database Disconnect
+  const btnDisconnect = document.getElementById("btnDisconnectDb");
+  if (btnDisconnect) {
+    btnDisconnect.addEventListener("click", () => {
+      if (confirm("Disconnect Supabase and switch back to local/server storage?")) {
+        setSupabaseConfig("", "");
+        updateDatabaseUI();
+        closeModal("modalDatabase");
+        showToast("Disconnected from Supabase.");
+      }
+    });
+  }
   // Admin button click
   const handleAuthClick = () => {
     if (isAdminUnlocked()) {

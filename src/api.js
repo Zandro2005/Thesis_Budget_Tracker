@@ -1,4 +1,23 @@
-// API Client with resilient localStorage persistence and two-way sync for Thesis Budget Tracker
+// API Client with Supabase database integration, resilient localStorage persistence, and two-way sync
+import {
+  isSupabaseConfigured,
+  getSupabaseConfig,
+  setSupabaseConfig,
+  testSupabaseConnection,
+  fetchSupabaseLedger,
+  addSupabaseExpense,
+  updateSupabaseExpense,
+  deleteSupabaseExpense,
+  subscribeToSupabaseRealtime
+} from "./supabase.js";
+
+export {
+  isSupabaseConfigured,
+  getSupabaseConfig,
+  setSupabaseConfig,
+  testSupabaseConnection,
+  subscribeToSupabaseRealtime
+};
 
 const STORAGE_KEY_PW = "thesis_budget_admin_pw";
 const STORAGE_KEY_LEDGER = "thesis_budget_ledger_cache";
@@ -177,14 +196,28 @@ async function request(endpoint, options = {}) {
 
 export async function fetchLedger() {
   const cached = getCachedLedger();
+
+  // 1. Try Supabase if configured (most reliable cloud database)
+  if (isSupabaseConfigured()) {
+    try {
+      const sbData = await fetchSupabaseLedger();
+      if (sbData && Array.isArray(sbData.expenses)) {
+        const merged = mergeLedgers(cached, sbData);
+        saveCachedLedger(merged);
+        return merged;
+      }
+    } catch (err) {
+      console.warn("Supabase fetch failed, falling back to cached/api ledger:", err.message);
+    }
+  }
+
+  // 2. Fallback to /api/ledger
   try {
     const data = await request("/api/ledger", { method: "GET" });
     if (data && Array.isArray(data.expenses)) {
       const merged = mergeLedgers(cached, data);
       saveCachedLedger(merged);
 
-      // If client has items that the server is missing (e.g. server restarted or Blobs was empty),
-      // push a background sync so group members can see them too.
       if (isAdminUnlocked() && Array.isArray(merged.expenses) && merged.expenses.length > data.expenses.length) {
         syncToServer(merged).catch(() => {});
       }
@@ -239,13 +272,21 @@ export async function addExpense(expenseData) {
   cached.updatedAt = new Date().toISOString();
   saveCachedLedger(cached);
 
-  // Step 2: Push to server
+  // Step 2: Push to Supabase if configured
+  if (isSupabaseConfigured()) {
+    try {
+      await addSupabaseExpense(newExp);
+    } catch (sbErr) {
+      console.warn("Supabase add error, queued locally:", sbErr.message);
+    }
+  }
+
+  // Step 3: Push to backend server
   try {
     const result = await request("/api/expenses", {
       method: "POST",
       body: JSON.stringify(newExp)
     });
-    // Merge server return with local cache to preserve any existing expenses
     const merged = mergeLedgers(cached, result);
     saveCachedLedger(merged);
     return merged;
@@ -276,6 +317,15 @@ export async function updateExpense(id, expenseData) {
   cached.updatedAt = new Date().toISOString();
   saveCachedLedger(cached);
 
+  // Push to Supabase if configured
+  if (isSupabaseConfigured()) {
+    try {
+      await updateSupabaseExpense(strId, expenseData);
+    } catch (sbErr) {
+      console.warn("Supabase update error:", sbErr.message);
+    }
+  }
+
   try {
     const result = await request(`/api/expenses/${encodeURIComponent(strId)}`, {
       method: "PUT",
@@ -301,7 +351,6 @@ export async function deleteExpense(id) {
   }
 
   const strId = String(id);
-  // Mark tombstone so it can never be accidentally resurrected
   markAsDeleted(strId);
 
   // Step 1: Remove ONLY this id locally immediately
@@ -316,13 +365,21 @@ export async function deleteExpense(id) {
   cached.updatedAt = new Date().toISOString();
   saveCachedLedger(cached);
 
-  // Step 2: Tell server to delete
+  // Step 2: Delete from Supabase if configured
+  if (isSupabaseConfigured()) {
+    try {
+      await deleteSupabaseExpense(strId);
+    } catch (sbErr) {
+      console.warn("Supabase delete error:", sbErr.message);
+    }
+  }
+
+  // Step 3: Tell server to delete
   try {
     const result = await request(`/api/expenses/${encodeURIComponent(strId)}`, {
       method: "DELETE"
     });
     const merged = mergeLedgers(cached, result);
-    // Guarantee this id is absent from result
     merged.expenses = (merged.expenses || []).filter((e) => String(e.id) !== strId);
     saveCachedLedger(merged);
     return merged;

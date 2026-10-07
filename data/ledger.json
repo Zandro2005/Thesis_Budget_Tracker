@@ -2,8 +2,35 @@
   "totalBudget": 15000,
   "currency": "PHP",
   "title": "Thesis Capstone Budget",
-  "updatedAt": "2026-10-07T06:31:31.237Z",
+  "updatedAt": "2026-10-07T07:59:23.295Z",
   "expenses": [
+    {
+      "id": "exp-1791359955531-gv8p35",
+      "date": "2026-10-07",
+      "item": "Foods",
+      "category": "Food & Refreshments",
+      "amount": 200,
+      "paidBy": "Zandro",
+      "notes": ""
+    },
+    {
+      "id": "exp-1791359937915-hzyz6e",
+      "date": "2026-10-07",
+      "item": "Print",
+      "category": "Printing & Binding",
+      "amount": 100,
+      "paidBy": "Zandro",
+      "notes": ""
+    },
+    {
+      "id": "exp-1791359920539-afhy84",
+      "date": "2026-10-07",
+      "item": "AI Subscription",
+      "category": "Software & Cloud",
+      "amount": 300,
+      "paidBy": "Zandro",
+      "notes": ""
+    },
     {
       "id": "seed-1",
       "date": "2026-10-01",

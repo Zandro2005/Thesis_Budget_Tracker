@@ -805,3 +805,116 @@ form {
     gap: 10px;
   }
 }
+
+/* Database Status & Config UI */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-db {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.db-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.db-indicator.connected {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.db-indicator.warning {
+  background: #f59e0b;
+}
+
+.db-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+  font-size: 0.88rem;
+}
+
+.db-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex-shrink: 0;
+}
+
+.db-status-dot.connected {
+  background: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.8);
+}
+
+.db-info-text {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin-bottom: 14px;
+}
+
+.db-sql-guide {
+  margin-top: 14px;
+  margin-bottom: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.84rem;
+}
+
+.db-sql-guide summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.db-guide-content {
+  margin-top: 10px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.db-guide-content ol {
+  padding-left: 20px;
+  margin-bottom: 10px;
+}
+
+.db-guide-content a {
+  color: #38bdf8;
+  text-decoration: underline;
+}
+
+.sql-box {
+  background: #0f172a;
+  border: 1px solid var(--border);
+  padding: 10px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  overflow-x: auto;
+  user-select: all;
+  white-space: pre-wrap;
+}

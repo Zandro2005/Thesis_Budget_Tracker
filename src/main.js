@@ -1,6 +1,6 @@
 // Main entry point
 
-import { fetchLedger, isAdminUnlocked } from "./api.js";
+import { fetchLedger, isAdminUnlocked, subscribeToSupabaseRealtime } from "./api.js";
 import { setLedgerData, renderSummary, renderLedger, setFilter } from "./ledger.js";
 import { setupModals, setupAdminActions, updateAdminUI } from "./admin.js";
 
@@ -62,6 +62,16 @@ async function init() {
     renderSummary();
     renderLedger(isAdminUnlocked());
     updateAdminUI();
+
+    // Subscribe to Realtime Postgres updates if Supabase is active
+    subscribeToSupabaseRealtime(async () => {
+      try {
+        const fresh = await fetchLedger();
+        setLedgerData(fresh);
+        renderSummary();
+        renderLedger(isAdminUnlocked());
+      } catch {}
+    });
   } catch (err) {
     console.error("Error loading data:", err);
     renderSummary();

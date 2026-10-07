@@ -60,21 +60,47 @@ Hosted on **Netlify** with **Netlify Functions** and **Netlify Blobs** for zero-
 5. Click **Add environment variables** and set:
    - Key: `ADMIN_PASSWORD`
    - Value: `<your-secret-group-treasurer-password>`
+   - (Optional) `VITE_SUPABASE_URL`: Your Supabase Project URL
+   - (Optional) `VITE_SUPABASE_ANON_KEY`: Your Supabase Anon Public Key
 6. Click **Deploy thesis-budget-tracker**.
 7. Share the generated `https://<your-site-name>.netlify.app` URL with your thesis group members!
 
-### Method 2: Via Netlify CLI
-1. Run:
-   ```bash
-   npx netlify login
-   npx netlify deploy --build --prod
+---
+
+## Reliable Cloud Database: Supabase (PostgreSQL)
+
+You can connect a free PostgreSQL database from [Supabase](https://supabase.com) in under 2 minutes:
+
+1. **Create a Free Project**:
+   - Go to [supabase.com](https://supabase.com) and create a free account & project.
+2. **Run the SQL Table Setup**:
+   - Go to the **SQL Editor** in your Supabase dashboard and run:
+   ```sql
+   create table if not exists expenses (
+     id text primary key,
+     date text not null,
+     item text not null,
+     category text not null,
+     amount numeric not null,
+     paid_by text default 'All Members',
+     notes text default '',
+     created_at timestamp with time zone default timezone('utc'::text, now())
+   );
+
+   alter table expenses enable row level security;
+   drop policy if exists "Allow all operations for expenses" on expenses;
+   create policy "Allow all operations for expenses" on expenses for all using (true) with check (true);
    ```
-2. In the Netlify dashboard under **Site configuration → Environment variables**, add `ADMIN_PASSWORD`.
+3. **Connect Your Database**:
+   - In the app header, click **Database** (or DB on mobile).
+   - Paste your **Project URL** and **Anon API Key** (found in Supabase under *Project Settings → API*).
+   - Click **Test & Save**.
+   - The indicator turns green (`PostgreSQL`), and all updates will now permanently sync in real-time across all group members!
 
 ---
 
 ## Tech Stack
-- **Frontend**: Vanilla JavaScript (ES Modules), Modern CSS with Glassmorphism, Google Fonts (`Outfit`, `Inter`).
+- **Frontend**: Vanilla JavaScript (ES Modules), Modern CSS with Glassmorphism, Google Fonts (`Inter`).
 - **Dev Tooling**: [Vite](https://vitejs.dev/)
+- **Database**: [Supabase](https://supabase.com) (PostgreSQL) with local offline cache fallback.
 - **Serverless Backend**: [Netlify Functions](https://docs.netlify.com/functions/overview/) (v2)
-- **Database/Storage**: [Netlify Blobs](https://docs.netlify.com/blobs/overview/)

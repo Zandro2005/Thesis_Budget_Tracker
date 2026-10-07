@@ -20,6 +20,10 @@
       <strong class="sticky-amount" id="stickyRemaining">₱15,000.00</strong>
     </div>
     <div class="sticky-btns">
+      <button class="btn btn-sm btn-outline btn-db admin-only hidden" id="stickyDbBtn" title="Database Settings">
+        <span class="db-indicator" id="stickyDbIndicator"></span>
+        <span>DB</span>
+      </button>
       <button class="btn btn-sm btn-outline" id="stickyAdminBtn">Admin</button>
       <button class="btn btn-sm btn-primary" id="stickyAddBtn">+ Add</button>
     </div>
@@ -33,6 +37,10 @@
         <p class="app-subtitle">Expense Ledger • ₱15,000 Cap</p>
       </div>
       <div class="header-right">
+        <button class="btn btn-outline btn-db admin-only hidden" id="btnOpenDbModal" title="Cloud Database Settings">
+          <span class="db-indicator" id="dbIndicator"></span>
+          <span id="dbBtnLabel">Database</span>
+        </button>
         <button class="btn btn-admin" id="btnAdminAuth">
           <span id="adminBtnLabel">Admin</span>
         </button>
@@ -219,6 +227,66 @@
         <button type="button" class="btn btn-outline" data-close="modalDelete">Cancel</button>
         <button type="button" class="btn btn-danger" id="btnConfirmDelete">Delete</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Database Settings -->
+  <div class="modal-backdrop hidden" id="modalDatabase">
+    <div class="modal-box modal-md">
+      <div class="modal-header">
+        <h3>Cloud Database (Supabase)</h3>
+        <button class="modal-close" data-close="modalDatabase">&times;</button>
+      </div>
+      <form id="formDatabase">
+        <div class="db-status-banner" id="dbStatusBanner">
+          <span class="db-status-dot" id="dbStatusDot"></span>
+          <span id="dbStatusText">Checking connection...</span>
+        </div>
+
+        <p class="db-info-text">
+          Connect your free <strong>Supabase PostgreSQL database</strong> for permanent, real-time cloud sync across all thesis group members.
+        </p>
+
+        <div class="form-group">
+          <label for="supabaseUrlInput">Project URL *</label>
+          <input type="url" id="supabaseUrlInput" class="form-input" placeholder="https://xyzcompany.supabase.co" autocomplete="off" />
+        </div>
+
+        <div class="form-group">
+          <label for="supabaseKeyInput">Anon / Public API Key *</label>
+          <input type="password" id="supabaseKeyInput" class="form-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." autocomplete="off" />
+        </div>
+
+        <details class="db-sql-guide">
+          <summary>1-Minute Setup Guide & SQL Schema</summary>
+          <div class="db-guide-content">
+            <ol>
+              <li>Create a free project at <a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a>.</li>
+              <li>Go to <strong>Project Settings → API</strong> to copy your Project URL and anon public key.</li>
+              <li>Go to <strong>SQL Editor</strong> in Supabase, paste this query and click Run:</li>
+            </ol>
+            <pre class="sql-box"><code>create table if not exists expenses (
+  id text primary key,
+  date text not null,
+  item text not null,
+  category text not null,
+  amount numeric not null,
+  paid_by text default 'All Members',
+  notes text default '',
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+alter table expenses enable row level security;
+drop policy if exists "Allow all operations for expenses" on expenses;
+create policy "Allow all operations for expenses" on expenses for all using (true) with check (true);</code></pre>
+          </div>
+        </details>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="btnDisconnectDb">Disconnect</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveDbConfig">Test & Save</button>
+        </div>
+      </form>
     </div>
   </div>
 

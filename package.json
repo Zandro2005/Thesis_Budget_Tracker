@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
-    "@netlify/functions": "^3.0.0"
+    "@netlify/functions": "^3.0.0",
+    "@supabase/supabase-js": "^2.117.2"
   },
   "devDependencies": {
     "vite": "^6.2.0"
