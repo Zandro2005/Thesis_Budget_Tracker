@@ -1,0 +1,26 @@
+{
+  "totalBudget": 15000,
+  "currency": "PHP",
+  "title": "Thesis Capstone Budget",
+  "updatedAt": "2026-10-07T06:31:31.237Z",
+  "expenses": [
+    {
+      "id": "seed-1",
+      "date": "2026-10-01",
+      "item": "Survey Questionnaires Pilot Print (50 sets)",
+      "category": "Printing & Binding",
+      "amount": 450,
+      "paidBy": "Team Lead",
+      "notes": "Pilot survey copies"
+    },
+    {
+      "id": "seed-2",
+      "date": "2026-10-03",
+      "item": "Hardware Prototype Sensors & Components",
+      "category": "Materials & Supplies",
+      "amount": 1850,
+      "paidBy": "Hardware Lead",
+      "notes": "Microcontroller, sensors & wiring"
+    }
+  ]
+}

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 function localApiDevPlugin() {
-  const dataDir = path.resolve(process.cwd(), ".data");
+  const dataDir = path.resolve(process.cwd(), "data");
   const dataFile = path.join(dataDir, "ledger.json");
 
   const defaultData = {

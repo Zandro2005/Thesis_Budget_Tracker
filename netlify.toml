@@ -8,8 +8,3 @@
   port = 8888
   targetPort = 5173
   publish = "dist"
-
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/ledger"
-  status = 200

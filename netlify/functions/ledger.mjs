@@ -1,10 +1,13 @@
 import { getStore } from "@netlify/blobs";
+import fs from "node:fs";
+import path from "node:path";
 
 export const config = {
   path: "/api/*"
 };
 
-const DEFAULT_DATA = {
+// Initial default data, seeded from committed data/ledger.json if available
+let DEFAULT_DATA = {
   totalBudget: 15000,
   currency: "PHP",
   title: "Thesis Capstone Budget",
@@ -12,10 +15,59 @@ const DEFAULT_DATA = {
   expenses: []
 };
 
+try {
+  const seedPath = path.resolve(process.cwd(), "data/ledger.json");
+  if (fs.existsSync(seedPath)) {
+    const raw = fs.readFileSync(seedPath, "utf-8");
+    DEFAULT_DATA = JSON.parse(raw);
+  }
+} catch (e) {
+  console.warn("Could not load seed data/ledger.json:", e.message);
+}
+
+// In-memory fallback if Blobs environment is not provisioned
+let inMemoryLedger = JSON.parse(JSON.stringify(DEFAULT_DATA));
+
 function checkAuth(req) {
   const adminPassword = process.env.ADMIN_PASSWORD || "0907133ado";
   const providedPassword = req.headers.get("x-admin-password");
   return Boolean(providedPassword && providedPassword === adminPassword);
+}
+
+async function getStoreSafe() {
+  try {
+    const store = getStore("thesis_budget");
+    return store;
+  } catch (err) {
+    console.warn("Netlify Blobs unavailable in this environment:", err.message);
+    return null;
+  }
+}
+
+async function loadLedger(store) {
+  if (store) {
+    try {
+      const data = await store.get("ledger_data", { type: "json" });
+      if (data) return data;
+      // Initialize with baseline data
+      await store.setJSON("ledger_data", inMemoryLedger);
+      return inMemoryLedger;
+    } catch (err) {
+      console.warn("Store read error, using fallback:", err.message);
+    }
+  }
+  return inMemoryLedger;
+}
+
+async function saveLedger(store, data) {
+  inMemoryLedger = data;
+  if (store) {
+    try {
+      await store.setJSON("ledger_data", data);
+    } catch (err) {
+      console.warn("Store write error:", err.message);
+    }
+  }
 }
 
 export default async (req, context) => {
@@ -27,7 +79,7 @@ export default async (req, context) => {
   }
   const method = req.method.toUpperCase();
 
-  // Handle CORS preflight if called cross-origin
+  // CORS preflight
   if (method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -46,19 +98,10 @@ export default async (req, context) => {
   };
 
   try {
-    const store = getStore("thesis_budget");
-    let ledger = await store.get("ledger_data", { type: "json" });
+    const store = await getStoreSafe();
+    let ledger = await loadLedger(store);
 
-    if (!ledger) {
-      ledger = DEFAULT_DATA;
-      try {
-        await store.setJSON("ledger_data", ledger);
-      } catch (e) {
-        console.warn("Could not write default data to store:", e.message);
-      }
-    }
-
-    // 1. GET /api/ledger - Public view
+    // 1. GET /api/ledger
     if (pathname === "/api/ledger" && method === "GET") {
       return new Response(JSON.stringify(ledger), {
         status: 200,
@@ -66,7 +109,7 @@ export default async (req, context) => {
       });
     }
 
-    // 2. POST /api/auth - Verify admin password
+    // 2. POST /api/auth
     if (pathname === "/api/auth" && method === "POST") {
       const isAuthed = checkAuth(req);
       if (!isAuthed) {
@@ -81,7 +124,7 @@ export default async (req, context) => {
       );
     }
 
-    // All subsequent actions require admin authentication
+    // Protected operations require auth
     if (!checkAuth(req)) {
       return new Response(
         JSON.stringify({ success: false, message: "Unauthorized. Admin password required." }),
@@ -89,45 +132,25 @@ export default async (req, context) => {
       );
     }
 
-    // 3. PUT /api/budget - Update total budget or title
-    if (pathname === "/api/budget" && method === "PUT") {
-      const body = await req.json();
-      if (typeof body.totalBudget === "number" && body.totalBudget > 0) {
-        ledger.totalBudget = body.totalBudget;
-      }
-      if (typeof body.title === "string" && body.title.trim()) {
-        ledger.title = body.title.trim();
-      }
-      ledger.updatedAt = new Date().toISOString();
-      await store.setJSON("ledger_data", ledger);
-      return new Response(JSON.stringify(ledger), { status: 200, headers: responseHeaders });
-    }
-
-    // 4. POST /api/expenses - Add new expense
+    // 3. POST /api/expenses
     if (pathname === "/api/expenses" && method === "POST") {
       const body = await req.json();
       const amount = parseFloat(body.amount);
       const item = (body.item || "").trim();
       const category = (body.category || "Miscellaneous").trim();
-      const paidBy = (body.paidBy || "Unspecified").trim();
+      const paidBy = (body.paidBy || "All Members").trim();
       const date = (body.date || new Date().toISOString().split("T")[0]).trim();
       const notes = (body.notes || "").trim();
 
-      if (!item) {
+      if (!item || isNaN(amount) || amount <= 0) {
         return new Response(
-          JSON.stringify({ success: false, message: "Expense item description is required." }),
-          { status: 400, headers: responseHeaders }
-        );
-      }
-      if (isNaN(amount) || amount <= 0) {
-        return new Response(
-          JSON.stringify({ success: false, message: "Valid positive amount is required." }),
+          JSON.stringify({ success: false, message: "Valid item and positive amount required." }),
           { status: 400, headers: responseHeaders }
         );
       }
 
       const newExpense = {
-        id: crypto.randomUUID(),
+        id: "exp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
         date,
         item,
         category,
@@ -138,14 +161,14 @@ export default async (req, context) => {
 
       ledger.expenses.unshift(newExpense);
       ledger.updatedAt = new Date().toISOString();
-      await store.setJSON("ledger_data", ledger);
+      await saveLedger(store, ledger);
 
       return new Response(JSON.stringify(ledger), { status: 201, headers: responseHeaders });
     }
 
-    // 5. PUT /api/expenses/:id - Edit expense
-    if (pathname.startsWith("/api/expenses/") && method === "PUT") {
-      const id = pathname.replace("/api/expenses/", "");
+    // 4. PUT /api/expenses/:id
+    if (pathname.includes("/api/expenses/") && method === "PUT") {
+      const id = pathname.split("/api/expenses/")[1]?.split("/")[0]?.split("?")[0];
       const index = ledger.expenses.findIndex((e) => e.id === id);
       if (index === -1) {
         return new Response(
@@ -158,41 +181,35 @@ export default async (req, context) => {
       const amount = parseFloat(body.amount);
       const item = (body.item || "").trim();
 
-      if (!item) {
+      if (!item || isNaN(amount) || amount <= 0) {
         return new Response(
-          JSON.stringify({ success: false, message: "Item description cannot be empty." }),
-          { status: 400, headers: responseHeaders }
-        );
-      }
-      if (isNaN(amount) || amount <= 0) {
-        return new Response(
-          JSON.stringify({ success: false, message: "Amount must be greater than zero." }),
+          JSON.stringify({ success: false, message: "Valid item and amount required." }),
           { status: 400, headers: responseHeaders }
         );
       }
 
       ledger.expenses[index] = {
         ...ledger.expenses[index],
-        date: (body.date || ledger.expenses[index].date).trim(),
+        date: body.date || ledger.expenses[index].date,
         item,
-        category: (body.category || ledger.expenses[index].category).trim(),
+        category: body.category || ledger.expenses[index].category,
         amount,
-        paidBy: (body.paidBy || ledger.expenses[index].paidBy).trim(),
-        notes: (body.notes !== undefined ? body.notes : ledger.expenses[index].notes).trim()
+        paidBy: body.paidBy || ledger.expenses[index].paidBy,
+        notes: body.notes !== undefined ? body.notes : ledger.expenses[index].notes
       };
       ledger.updatedAt = new Date().toISOString();
-      await store.setJSON("ledger_data", ledger);
+      await saveLedger(store, ledger);
 
       return new Response(JSON.stringify(ledger), { status: 200, headers: responseHeaders });
     }
 
-    // 6. DELETE /api/expenses/:id - Delete expense
-    if (pathname.startsWith("/api/expenses/") && method === "DELETE") {
-      const id = pathname.replace("/api/expenses/", "");
-      const initialLength = ledger.expenses.length;
+    // 5. DELETE /api/expenses/:id
+    if (pathname.includes("/api/expenses/") && method === "DELETE") {
+      const id = pathname.split("/api/expenses/")[1]?.split("/")[0]?.split("?")[0];
+      const initLen = ledger.expenses.length;
       ledger.expenses = ledger.expenses.filter((e) => e.id !== id);
 
-      if (ledger.expenses.length === initialLength) {
+      if (ledger.expenses.length === initLen) {
         return new Response(
           JSON.stringify({ success: false, message: "Expense not found." }),
           { status: 404, headers: responseHeaders }
@@ -200,7 +217,7 @@ export default async (req, context) => {
       }
 
       ledger.updatedAt = new Date().toISOString();
-      await store.setJSON("ledger_data", ledger);
+      await saveLedger(store, ledger);
 
       return new Response(JSON.stringify(ledger), { status: 200, headers: responseHeaders });
     }
@@ -210,7 +227,7 @@ export default async (req, context) => {
       headers: responseHeaders
     });
   } catch (err) {
-    console.error("Function error:", err);
+    console.error("Function fatal error:", err);
     return new Response(
       JSON.stringify({ success: false, error: err.message }),
       { status: 500, headers: responseHeaders }
